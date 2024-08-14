@@ -77,14 +77,14 @@ def impute_sklearn(model: Union[RandomForestRegressor, RandomForestClassifier, S
     """
     num_tasks = train_data.num_tasks()
     new_targets=deepcopy(train_data.targets())
-    
+
     if logger is not None:
         debug = logger.debug
     else:
         debug = print
-        
+
     debug('Imputation')
-    
+
     for task_num in trange(num_tasks):
         impute_train_features = [features for features, targets in zip(train_data.features(), train_data.targets()) if targets[task_num] is None]
         if len(impute_train_features) > 0:
@@ -113,7 +113,7 @@ def impute_sklearn(model: Union[RandomForestRegressor, RandomForestClassifier, S
                 cls = SGDClassifier().fit(train_features, train_targets)
                 impute_train_preds = cls.predict(impute_train_features)
             else:
-                raise ValueError("Invalid combination of imputation mode and dataset type.")   
+                raise ValueError("Invalid combination of imputation mode and dataset type.")
 
             #Replace targets
             ctr = 0
@@ -124,7 +124,7 @@ def impute_sklearn(model: Union[RandomForestRegressor, RandomForestClassifier, S
                         value = int(value > threshold)
                     new_targets[i][task_num] = value
                     ctr += 1
-                    
+
     return new_targets
 
 
@@ -161,6 +161,11 @@ def single_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifi
         test_features, test_targets = zip(*[(features, targets[task_num])
                                             for features, targets in zip(test_data.features(), test_data.targets())
                                             if targets[task_num] is not None])
+        valid_indices = [
+            index
+            for index, targets in test_data.targets()
+            if targets[task_num] is not None
+        ]
 
         model.fit(train_features, train_targets)
 
@@ -172,8 +177,14 @@ def single_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifi
         )
         test_targets = [[target] for target in test_targets]
 
-        test_preds_dataframe[f"{task_name}_pred"] = [pred[0] for pred in test_preds]
-        test_preds_dataframe[f"{task_name}_true"] = [target[0] for target in test_targets]
+        test_preds_expanded = np.nan * np.zeros(len(test_data))
+        test_targets_expanded = np.nan * np.zeros(len(test_data))
+
+        test_preds_expanded[valid_indices] = [pred[0] for pred in test_preds]
+        test_targets_expanded[valid_indices] = [target[0] for target in test_targets]
+
+        test_preds_dataframe[f"{task_name}_pred"] = test_preds_expanded
+        test_preds_dataframe[f"{task_name}_true"] = test_targets_expanded
 
         score = evaluate_predictions(
             preds=test_preds,
@@ -227,7 +238,7 @@ def multi_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifie
         raise ValueError("Missing target values not tolerated for multi-task sklearn models." 
                          "Use either --single_task to train multiple single-task models or impute"
                          " targets via --impute_mode  <model/linear/median/mean/frequent>.")
-        
+
     if train_data.num_tasks() == 1:
         train_targets = [targets[0] for targets in train_targets]
 
@@ -325,10 +336,10 @@ def run_sklearn(args: SklearnTrainArgs,
 
     debug(f'Total size = {len(data):,} | train size = {len(train_data):,} | test size = {len(test_data):,}')
 
-    features_size = train_data[0].features().shape[0]
-    debug(f'Features size = {features_size}')
-
-    if features_size == 0:
+    if train_data[0].features:
+        features_size = train_data[0].features.shape[0]
+        debug(f'Features size = {features_size}')
+    else:
         debug('No features found, computing morgan fingerprints')
         morgan_fingerprint = get_features_generator('morgan')
         for dataset in [train_data, test_data]:
