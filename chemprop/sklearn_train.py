@@ -5,6 +5,7 @@ from typing import Dict, List, Union
 from copy import deepcopy
 
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.svm import SVC, SVR
 from sklearn.linear_model import SGDClassifier, SGDRegressor
@@ -149,7 +150,10 @@ def single_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifi
     """
     scores = {}
     num_tasks = train_data.num_tasks()
-    for task_num in trange(num_tasks):
+    test_preds_dataframe = pd.DataFrame(data={
+        'smiles': [smiles_list[0] for smiles_list in test_data.smiles()],
+    })
+    for task_num, task_name in enumerate(tqdm(args.task_names)):
         # Only get features and targets for molecules where target is not None
         train_features, train_targets = zip(*[(features, targets[task_num])
                                               for features, targets in zip(train_data.features(), train_data.targets())
@@ -168,6 +172,9 @@ def single_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifi
         )
         test_targets = [[target] for target in test_targets]
 
+        test_preds_dataframe[f"{task_name}_pred"] = [pred[0] for pred in test_preds]
+        test_preds_dataframe[f"{task_name}_true"] = [target[0] for target in test_targets]
+
         score = evaluate_predictions(
             preds=test_preds,
             targets=test_targets,
@@ -180,6 +187,9 @@ def single_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifi
             if metric not in scores:
                 scores[metric] = []
             scores[metric].append(score[metric][0])
+
+    if args.save_preds:
+        test_preds_dataframe.to_csv(os.path.join(args.save_dir, 'test_preds.csv'), index=False)
 
     return scores
 
@@ -235,6 +245,17 @@ def multi_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifie
         features=test_data.features()
     )
 
+    if args.save_preds:
+        test_preds_dataframe = pd.DataFrame(data={
+            'smiles': [smiles_list[0] for smiles_list in test_data.smiles()],
+        })
+
+        for task_num, task_name in enumerate(args.task_names):
+            test_preds_dataframe[f"{task_name}_pred"] = [pred[task_num] for pred in test_preds]
+            test_preds_dataframe[f"{task_name}_true"] = [target[task_num] for target in test_data.targets()]
+
+        test_preds_dataframe.to_csv(os.path.join(args.save_dir, 'test_preds.csv'), index=False)
+
     scores = evaluate_predictions(
         preds=test_preds,
         targets=test_data.targets(),
@@ -275,7 +296,7 @@ def run_sklearn(args: SklearnTrainArgs,
                                      target_columns=args.target_columns,
                                      ignore_columns=args.ignore_columns)
 
-    if args.model_type == 'svm' and data.num_tasks() != 1:
+    if args.model_type == 'svm' and data.num_tasks() != 1 and not args.single_task:
         raise ValueError(f'SVM can only handle single-task data but found {data.num_tasks()} tasks')
 
     debug(f'Splitting data with seed {args.seed}')

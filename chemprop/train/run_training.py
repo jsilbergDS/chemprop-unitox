@@ -417,7 +417,7 @@ def run_training(args: TrainArgs,
 
     # Optionally save test preds
     if args.save_preds and not empty_test_set:
-        test_preds_dataframe = pd.DataFrame(data={'smiles': test_data.smiles()})
+        test_preds_dataframe = pd.DataFrame(data={'smiles': [smiles_list[0] for smiles_list in test_data.smiles()]})
 
         if args.is_atom_bond_targets:
             n_atoms, n_bonds = test_data.number_of_atoms, test_data.number_of_bonds
@@ -432,7 +432,10 @@ def run_training(args: TrainArgs,
                 test_preds_dataframe[bond_target] = values
         else:
             for i, task_name in enumerate(args.task_names):
-                test_preds_dataframe[task_name] = [pred[i] for pred in avg_test_preds]
+                test_preds_dataframe[f"{task_name}_pred"] = [pred[i] for pred in avg_test_preds]
+
+        for i, task_name in enumerate(args.task_names):
+            test_preds_dataframe[f"{task_name}_true"] = [target[i] for target in test_targets]
 
         test_preds_dataframe.to_csv(os.path.join(args.save_dir, 'test_preds.csv'), index=False)
 
