@@ -163,7 +163,7 @@ def single_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifi
                                             if targets[task_num] is not None])
         valid_indices = [
             index
-            for index, targets in test_data.targets()
+            for index, targets in enumerate(test_data.targets())
             if targets[task_num] is not None
         ]
 
@@ -336,7 +336,7 @@ def run_sklearn(args: SklearnTrainArgs,
 
     debug(f'Total size = {len(data):,} | train size = {len(train_data):,} | test size = {len(test_data):,}')
 
-    if train_data[0].features:
+    if train_data[0].features is not None:
         features_size = train_data[0].features.shape[0]
         debug(f'Features size = {features_size}')
     else:
