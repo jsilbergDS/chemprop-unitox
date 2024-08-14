@@ -169,6 +169,10 @@ def single_task_sklearn(model: Union[RandomForestRegressor, RandomForestClassifi
 
         model.fit(train_features, train_targets)
 
+        # Save model
+        with open(os.path.join(args.save_dir, f'model_{task_name}.pkl'), 'wb') as f:
+            pickle.dump(model, f)
+
         test_preds = predict(
             model=model,
             model_type=args.model_type,
